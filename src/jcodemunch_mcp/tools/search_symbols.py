@@ -7,7 +7,13 @@ import time
 from fnmatch import fnmatch
 from typing import Optional
 
-from ..storage import IndexStore, CodeIndex, record_savings, estimate_savings, cost_avoided
+from ..storage import (
+    IndexStore,
+    CodeIndex,
+    record_savings,
+    estimate_savings,
+    cost_avoided,
+)
 from ..parser.imports import resolve_specifier
 from ._utils import resolve_repo, resolve_fqn
 
@@ -65,6 +71,7 @@ def _result_cache_get(key: tuple) -> Optional[dict]:
 def _get_cache_max() -> int:
     try:
         from .. import config as _cfg
+
         return _cfg.get("search_result_cache_max", _RESULT_CACHE_MAX)
     except Exception:
         return _RESULT_CACHE_MAX
@@ -97,50 +104,114 @@ def result_cache_invalidate_repo(repo_key: str) -> int:
 # Built once at import time.
 # ---------------------------------------------------------------------------
 _ABBREV_MAP: dict[str, list[str]] = {
-    "db": ["database"], "auth": ["authentication", "authorization"],
-    "config": ["configuration"], "ctx": ["context"], "env": ["environment"],
-    "err": ["error"], "exec": ["execute", "execution"],
-    "fn": ["function"], "func": ["function"],
-    "impl": ["implementation", "implement"], "init": ["initialize", "initialization"],
-    "iter": ["iterator", "iterate"], "len": ["length"], "lib": ["library"],
-    "max": ["maximum"], "mem": ["memory"], "min": ["minimum"],
-    "msg": ["message"], "num": ["number"], "obj": ["object"],
-    "param": ["parameter"], "params": ["parameters"], "pkg": ["package"],
-    "prev": ["previous"], "proc": ["process", "procedure"],
-    "prop": ["property"], "props": ["properties"],
-    "ref": ["reference"], "refs": ["references"], "repo": ["repository"],
-    "req": ["request"], "res": ["response", "result"], "ret": ["return"],
-    "src": ["source"], "str": ["string"],
-    "sync": ["synchronize", "synchronous"], "sys": ["system"],
-    "temp": ["temporary"], "tmp": ["temporary"],
-    "val": ["value"], "var": ["variable"], "vars": ["variables"],
+    "db": ["database"],
+    "auth": ["authentication", "authorization"],
+    "config": ["configuration"],
+    "ctx": ["context"],
+    "env": ["environment"],
+    "err": ["error"],
+    "exec": ["execute", "execution"],
+    "fn": ["function"],
+    "func": ["function"],
+    "impl": ["implementation", "implement"],
+    "init": ["initialize", "initialization"],
+    "iter": ["iterator", "iterate"],
+    "len": ["length"],
+    "lib": ["library"],
+    "max": ["maximum"],
+    "mem": ["memory"],
+    "min": ["minimum"],
+    "msg": ["message"],
+    "num": ["number"],
+    "obj": ["object"],
+    "param": ["parameter"],
+    "params": ["parameters"],
+    "pkg": ["package"],
+    "prev": ["previous"],
+    "proc": ["process", "procedure"],
+    "prop": ["property"],
+    "props": ["properties"],
+    "ref": ["reference"],
+    "refs": ["references"],
+    "repo": ["repository"],
+    "req": ["request"],
+    "res": ["response", "result"],
+    "ret": ["return"],
+    "src": ["source"],
+    "str": ["string"],
+    "sync": ["synchronize", "synchronous"],
+    "sys": ["system"],
+    "temp": ["temporary"],
+    "tmp": ["temporary"],
+    "val": ["value"],
+    "var": ["variable"],
+    "vars": ["variables"],
     # Reverse mappings
-    "database": ["db"], "authentication": ["auth"], "authorization": ["auth"],
-    "configuration": ["config"], "context": ["ctx"], "environment": ["env"],
-    "error": ["err"], "execute": ["exec"], "function": ["func", "fn"],
-    "initialize": ["init"], "initialization": ["init"],
-    "iterator": ["iter"], "message": ["msg"],
-    "parameter": ["param"], "parameters": ["params"],
-    "repository": ["repo"], "request": ["req"], "response": ["res"],
-    "temporary": ["temp", "tmp"], "variable": ["var"], "variables": ["vars"],
+    "database": ["db"],
+    "authentication": ["auth"],
+    "authorization": ["auth"],
+    "configuration": ["config"],
+    "context": ["ctx"],
+    "environment": ["env"],
+    "error": ["err"],
+    "execute": ["exec"],
+    "function": ["func", "fn"],
+    "initialize": ["init"],
+    "initialization": ["init"],
+    "iterator": ["iter"],
+    "message": ["msg"],
+    "parameter": ["param"],
+    "parameters": ["params"],
+    "repository": ["repo"],
+    "request": ["req"],
+    "response": ["res"],
+    "temporary": ["temp", "tmp"],
+    "variable": ["var"],
+    "variables": ["vars"],
 }
 
 # Stemming rules: (suffix, replacement, min_base_length)
 # Ordered longest-first; doubled-consonant rules before single.
 _STEM_RULES: list[tuple[str, str, int]] = [
-    ("ation", "", 3), ("izing", "ize", 3), ("ating", "ate", 3),
-    ("nning", "n", 2), ("tting", "t", 2), ("pping", "p", 2),
-    ("gging", "g", 2), ("bbing", "b", 2), ("dding", "d", 2),
-    ("mming", "m", 2), ("lling", "l", 2),
-    ("sses", "ss", 2), ("ness", "", 3), ("ment", "", 3), ("tion", "", 3),
-    ("ized", "ize", 3), ("ling", "le", 3), ("ring", "r", 3),
-    ("ning", "n", 3), ("ting", "t", 3), ("ping", "p", 3),
-    ("bing", "b", 2), ("ding", "d", 3), ("ging", "g", 3),
-    ("king", "k", 3), ("ming", "m", 3),
-    ("lled", "ll", 3), ("nned", "n", 3), ("tted", "t", 3),
-    ("pped", "p", 3), ("gged", "g", 3), ("bbed", "b", 3), ("dded", "d", 3),
-    ("ing", "", 3), ("ies", "y", 3),
-    ("ed", "", 3), ("er", "", 3), ("ly", "", 3), ("es", "", 4),
+    ("ation", "", 3),
+    ("izing", "ize", 3),
+    ("ating", "ate", 3),
+    ("nning", "n", 2),
+    ("tting", "t", 2),
+    ("pping", "p", 2),
+    ("gging", "g", 2),
+    ("bbing", "b", 2),
+    ("dding", "d", 2),
+    ("mming", "m", 2),
+    ("lling", "l", 2),
+    ("sses", "ss", 2),
+    ("ness", "", 3),
+    ("ment", "", 3),
+    ("tion", "", 3),
+    ("ized", "ize", 3),
+    ("ling", "le", 3),
+    ("ring", "r", 3),
+    ("ning", "n", 3),
+    ("ting", "t", 3),
+    ("ping", "p", 3),
+    ("bing", "b", 2),
+    ("ding", "d", 3),
+    ("ging", "g", 3),
+    ("king", "k", 3),
+    ("ming", "m", 3),
+    ("lled", "ll", 3),
+    ("nned", "n", 3),
+    ("tted", "t", 3),
+    ("pped", "p", 3),
+    ("gged", "g", 3),
+    ("bbed", "b", 3),
+    ("dded", "d", 3),
+    ("ing", "", 3),
+    ("ies", "y", 3),
+    ("ed", "", 3),
+    ("er", "", 3),
+    ("ly", "", 3),
+    ("es", "", 4),
 ]
 
 
@@ -151,7 +222,7 @@ def _stem(word: str) -> str:
         return w
     for suffix, replacement, min_base in _STEM_RULES:
         if w.endswith(suffix):
-            base = w[:-len(suffix)]
+            base = w[: -len(suffix)]
             if len(base) >= min_base:
                 return base + replacement
     # Strip trailing 's' if result is 4+ chars and doesn't end in 's'
@@ -201,7 +272,9 @@ def _sym_tokens(sym: dict) -> list[str]:
     else:
         tokens = []
         tokens += _tokenize(sym.get("name", "")) * _FIELD_REPS["name"]
-        tokens += [kw.lower() for kw in sym.get("keywords", [])] * _FIELD_REPS["keywords"]
+        tokens += [kw.lower() for kw in sym.get("keywords", [])] * _FIELD_REPS[
+            "keywords"
+        ]
         tokens += _tokenize(sym.get("signature", "")) * _FIELD_REPS["signature"]
         tokens += _tokenize(sym.get("summary", "")) * _FIELD_REPS["summary"]
         tokens += _tokenize(sym.get("docstring", "")) * _FIELD_REPS["docstring"]
@@ -220,7 +293,9 @@ def _sym_tokens(sym: dict) -> list[str]:
     return tokens
 
 
-def _compute_bm25(symbols: list[dict]) -> tuple[dict[str, float], float, dict[str, list[int]]]:
+def _compute_bm25(
+    symbols: list[dict],
+) -> tuple[dict[str, float], float, dict[str, list[int]]]:
     """Return (idf_map, avgdl, inverted_index) computed over all symbols.
 
     The inverted_index maps each term to the list of symbol indices that
@@ -250,7 +325,9 @@ def _compute_bm25(symbols: list[dict]) -> tuple[dict[str, float], float, dict[st
 
 
 def _compute_centrality(
-    symbols: list[dict], imports: Optional[dict], alias_map: Optional[dict] = None,
+    symbols: list[dict],
+    imports: Optional[dict],
+    alias_map: Optional[dict] = None,
     psr4_map: Optional[dict] = None,
 ) -> dict[str, float]:
     """Return {file: log-scaled centrality bonus} based on importer count."""
@@ -260,7 +337,9 @@ def _compute_centrality(
     counts: dict[str, int] = {}
     for src_file, file_imports in imports.items():
         for imp in file_imports:
-            target = resolve_specifier(imp["specifier"], src_file, source_files, alias_map, psr4_map)
+            target = resolve_specifier(
+                imp["specifier"], src_file, source_files, alias_map, psr4_map
+            )
             if target:
                 counts[target] = counts.get(target, 0) + 1
     return {f: math.log(1 + c) * _CENTRALITY_WEIGHT for f, c in counts.items()}
@@ -300,8 +379,14 @@ def _identity_score(sym: dict, query_joined: str) -> float:
     return 0.0
 
 
-def _bm25_score(sym: dict, query_terms: list[str], idf: dict[str, float], avgdl: float,
-                centrality: Optional[dict] = None) -> float:
+def _bm25_score(
+    sym: dict,
+    query_terms: list[str],
+    idf: dict[str, float],
+    avgdl: float,
+    centrality: Optional[dict] = None,
+    query_raw: Optional[str] = None,
+) -> float:
     """BM25 score for a single symbol.
 
     Uses pre-cached _tf and _dl from _sym_tokens() to avoid rebuilding
@@ -311,9 +396,11 @@ def _bm25_score(sym: dict, query_terms: list[str], idf: dict[str, float], avgdl:
     tf_raw = sym["_tf"]
     dl = sym["_dl"]
 
-    # Identity channel: exact/prefix match on symbol name or ID
-    query_joined = " ".join(query_terms)
-    score: float = _identity_score(sym, query_joined)
+    # Identity channel: exact/prefix match on symbol name or ID.
+    # Use the original query text when available so CamelCase exact lookups
+    # (e.g. "ParsingService") are not diluted by tokenization/stemming.
+    query_identity = (query_raw or " ".join(query_terms)).strip().lower()
+    score: float = _identity_score(sym, query_identity)
 
     K = _BM25_K1 * (1 - _BM25_B + _BM25_B * dl / max(avgdl, 1.0))
     for term in set(query_terms):
@@ -331,7 +418,13 @@ def _bm25_score(sym: dict, query_terms: list[str], idf: dict[str, float], avgdl:
     return score
 
 
-def _bm25_breakdown(sym: dict, query_terms: list[str], idf: dict[str, float], avgdl: float) -> dict:
+def _bm25_breakdown(
+    sym: dict,
+    query_terms: list[str],
+    idf: dict[str, float],
+    avgdl: float,
+    query_raw: Optional[str] = None,
+) -> dict:
     """Per-field BM25 contribution breakdown (for debug mode).
 
     Uses cached _dl from _sym_tokens() for K computation but re-tokenizes
@@ -345,7 +438,8 @@ def _bm25_breakdown(sym: dict, query_terms: list[str], idf: dict[str, float], av
     # Per-field tokenization is unavoidable here — we need per-field attribution
     fields = {
         "name": _tokenize(sym.get("name", "")) * _FIELD_REPS["name"],
-        "keywords": [kw.lower() for kw in sym.get("keywords", [])] * _FIELD_REPS["keywords"],
+        "keywords": [kw.lower() for kw in sym.get("keywords", [])]
+        * _FIELD_REPS["keywords"],
         "signature": _tokenize(sym.get("signature", "")) * _FIELD_REPS["signature"],
         "summary": _tokenize(sym.get("summary", "")) * _FIELD_REPS["summary"],
         "docstring": _tokenize(sym.get("docstring", "")) * _FIELD_REPS["docstring"],
@@ -361,8 +455,8 @@ def _bm25_breakdown(sym: dict, query_terms: list[str], idf: dict[str, float], av
             if tf > 0 and idf.get(term, 0.0) > 0:
                 field_score += idf[term] * (tf * (_BM25_K1 + 1)) / (tf + K)
         out[fname] = round(field_score, 3)
-    query_joined = " ".join(query_terms)
-    identity = _identity_score(sym, query_joined)
+    query_identity = (query_raw or " ".join(query_terms)).strip().lower()
+    identity = _identity_score(sym, query_identity)
     out["identity"] = identity
     if identity >= 50.0:
         out["identity_type"] = "exact"
@@ -380,7 +474,7 @@ def _trigrams(text: str) -> frozenset:
     s = text.lower()
     if len(s) < 3:
         return frozenset({s}) if s else frozenset()
-    return frozenset(s[i:i + 3] for i in range(len(s) - 2))
+    return frozenset(s[i : i + 3] for i in range(len(s) - 2))
 
 
 def _edit_distance(a: str, b: str) -> int:
@@ -393,7 +487,9 @@ def _edit_distance(a: str, b: str) -> int:
         prev, row[0] = row[0], j
         for i in range(1, la + 1):
             temp = row[i]
-            row[i] = min(row[i] + 1, row[i - 1] + 1, prev + (0 if a[i - 1] == b[j - 1] else 1))
+            row[i] = min(
+                row[i] + 1, row[i - 1] + 1, prev + (0 if a[i - 1] == b[j - 1] else 1)
+            )
             prev = temp
     return row[la]
 
@@ -481,10 +577,14 @@ def search_symbols(
         Dict with search results and _meta envelope.
     """
     if detail_level not in ("compact", "standard", "full"):
-        return {"error": f"Invalid detail_level '{detail_level}'. Must be 'compact', 'standard', or 'full'."}
+        return {
+            "error": f"Invalid detail_level '{detail_level}'. Must be 'compact', 'standard', or 'full'."
+        }
 
     if sort_by not in ("relevance", "centrality", "combined"):
-        return {"error": f"Invalid sort_by '{sort_by}'. Must be 'relevance', 'centrality', or 'combined'."}
+        return {
+            "error": f"Invalid sort_by '{sort_by}'. Must be 'relevance', 'centrality', or 'combined'."
+        }
 
     # FQN shortcut: resolve PHP FQN and use class name as query
     if fqn:
@@ -513,7 +613,9 @@ def search_symbols(
 
     # Feature 5: Search result cache
     # Skip cache for debug/semantic modes (these need fresh data)
-    _cacheable = not debug and not semantic and not semantic_only and _get_cache_max() > 0
+    _cacheable = (
+        not debug and not semantic and not semantic_only and _get_cache_max() > 0
+    )
     _indexed_at = getattr(index, "indexed_at", "")
     _cache_key: Optional[tuple] = None
     if _cacheable:
@@ -539,7 +641,9 @@ def search_symbols(
         _cached = _result_cache_get(_cache_key)
         if _cached is not None:
             # Cache hit — return immediately with fresh timing
-            _cached["_meta"]["timing_ms"] = round((time.perf_counter() - start) * 1000, 1)
+            _cached["_meta"]["timing_ms"] = round(
+                (time.perf_counter() - start) * 1000, 1
+            )
             _cached["_meta"]["cache_hit"] = True
             return _cached
 
@@ -548,6 +652,7 @@ def search_symbols(
     if semantic or semantic_only:
         semantic = True  # semantic_only implies semantic
         from .embed_repo import _detect_provider
+
         _semantic_provider = _detect_provider()
         if _semantic_provider is None:
             return {
@@ -567,7 +672,12 @@ def search_symbols(
     cache = index._bm25_cache
     if "idf" not in cache:
         cache["idf"], cache["avgdl"], cache["inverted"] = _compute_bm25(index.symbols)
-        cache["centrality"] = _compute_centrality(index.symbols, index.imports, index.alias_map, getattr(index, "psr4_map", None))
+        cache["centrality"] = _compute_centrality(
+            index.symbols,
+            index.imports,
+            index.alias_map,
+            getattr(index, "psr4_map", None),
+        )
     idf = cache["idf"]
     avgdl = cache["avgdl"]
     centrality = cache["centrality"]
@@ -578,8 +688,12 @@ def search_symbols(
     if sort_by in ("centrality", "combined"):
         if "pagerank" not in cache:
             from .pagerank import compute_pagerank
+
             pr_scores, _ = compute_pagerank(
-                index.imports or {}, index.source_files, index.alias_map, psr4_map=getattr(index, "psr4_map", None)
+                index.imports or {},
+                index.source_files,
+                index.alias_map,
+                psr4_map=getattr(index, "psr4_map", None),
             )
             cache["pagerank"] = pr_scores
         pagerank = cache["pagerank"]
@@ -685,10 +799,12 @@ def search_symbols(
                 continue
             if language and sym.get("language") != language:
                 continue
-            if decorator and not any(decorator.lower() in d.lower() for d in (sym.get("decorators") or [])):
+            if decorator and not any(
+                decorator.lower() in d.lower() for d in (sym.get("decorators") or [])
+            ):
                 continue
 
-        score = _bm25_score(sym, query_terms, idf, avgdl, centrality)
+        score = _bm25_score(sym, query_terms, idf, avgdl, centrality, query_raw=query)
         if score <= 0:
             continue
 
@@ -700,7 +816,9 @@ def search_symbols(
         if sort_by == "centrality":
             heap_score = pagerank.get(sym.get("file", ""), 0.0)
         elif sort_by == "combined":
-            heap_score = score + pagerank.get(sym.get("file", ""), 0.0) * _PR_COMBINED_WEIGHT
+            heap_score = (
+                score + pagerank.get(sym.get("file", ""), 0.0) * _PR_COMBINED_WEIGHT
+            )
         else:
             heap_score = score
 
@@ -729,7 +847,9 @@ def search_symbols(
             entry["decorators"] = decs
         if debug:
             entry["score"] = round(score, 3)
-            entry["score_breakdown"] = _bm25_breakdown(sym, query_terms, idf, avgdl)
+            entry["score_breakdown"] = _bm25_breakdown(
+                sym, query_terms, idf, avgdl, query_raw=query
+            )
 
         # Bounded heap: O(N log K) instead of O(N log N)
         if len(heap) < effective_limit:
@@ -738,7 +858,9 @@ def search_symbols(
             heapq.heapreplace(heap, (heap_score, candidates_scored, entry))
 
     # Extract results sorted by score descending
-    scored_results = [entry for _, _, entry in sorted(heap, key=lambda x: x[0], reverse=True)]
+    scored_results = [
+        entry for _, _, entry in sorted(heap, key=lambda x: x[0], reverse=True)
+    ]
     heap_count = len(scored_results)  # save before budget packing
 
     budget_truncated = False
@@ -776,7 +898,10 @@ def search_symbols(
                     continue
                 if language and sym.get("language") != language:
                     continue
-                if decorator and not any(decorator.lower() in d.lower() for d in (sym.get("decorators") or [])):
+                if decorator and not any(
+                    decorator.lower() in d.lower()
+                    for d in (sym.get("decorators") or [])
+                ):
                     continue
             name_lower = sym.get("name", "").lower()
             name_tris = _trigrams(name_lower)
@@ -828,7 +953,9 @@ def search_symbols(
         for entry in scored_results:
             sym = index._get_symbol_raw(entry["id"])
             if sym:
-                source = store.get_symbol_content(owner, name, entry["id"], _index=index)
+                source = store.get_symbol_content(
+                    owner, name, entry["id"], _index=index
+                )
                 entry["end_line"] = sym.get("end_line", entry["line"])
                 entry["docstring"] = sym.get("docstring", "")
                 entry["source"] = source or ""
@@ -853,7 +980,10 @@ def search_symbols(
     _ne_threshold = _NEGATIVE_EVIDENCE_THRESHOLD
     try:
         from .. import config as _cfg
-        _ne_threshold = _cfg.get("negative_evidence_threshold", _NEGATIVE_EVIDENCE_THRESHOLD)
+
+        _ne_threshold = _cfg.get(
+            "negative_evidence_threshold", _NEGATIVE_EVIDENCE_THRESHOLD
+        )
     except Exception:
         pass
     if not scored_results or max_bm25_score < _ne_threshold:
@@ -868,10 +998,16 @@ def search_symbols(
                     break
         related_existing = related_existing[:5]  # cap at 5
 
-        verdict = "no_implementation_found" if not scored_results else "low_confidence_matches"
+        verdict = (
+            "no_implementation_found"
+            if not scored_results
+            else "low_confidence_matches"
+        )
         negative_evidence = {
             "verdict": verdict,
-            "scanned_symbols": candidates_scored if candidates_scored > 0 else len(index.symbols),
+            "scanned_symbols": candidates_scored
+            if candidates_scored > 0
+            else len(index.symbols),
             "scanned_files": len(seen_files) if seen_files else len(index.source_files),
             "best_match_score": round(max_bm25_score, 3) if max_bm25_score > 0 else 0.0,
         }
@@ -894,7 +1030,9 @@ def search_symbols(
     if debug:
         meta["candidates_scored"] = candidates_scored
     if scored_results:
-        meta["hint"] = "Use get_context_bundle(symbol_id) to retrieve source + imports in one call"
+        meta["hint"] = (
+            "Use get_context_bundle(symbol_id) to retrieve source + imports in one call"
+        )
 
     result = {
         "result_count": len(scored_results),
@@ -973,7 +1111,10 @@ def _search_symbols_semantic(
     _ne_threshold = _NEGATIVE_EVIDENCE_THRESHOLD
     try:
         from .. import config as _cfg
-        _ne_threshold = _cfg.get("negative_evidence_threshold", _NEGATIVE_EVIDENCE_THRESHOLD)
+
+        _ne_threshold = _cfg.get(
+            "negative_evidence_threshold", _NEGATIVE_EVIDENCE_THRESHOLD
+        )
     except Exception:
         pass
 
@@ -1002,13 +1143,19 @@ def _search_symbols_semantic(
             batch = missing[bi : bi + EMBED_BATCH_SIZE]
             try:
                 vecs = embed_texts(
-                    [_sym_text(s) for s in batch], provider, model,
+                    [_sym_text(s) for s in batch],
+                    provider,
+                    model,
                     task_type=doc_task_type,
                 )
                 for j, sym in enumerate(batch):
                     new_emb[sym["id"]] = vecs[j]
             except Exception as exc:
-                _logger.warning("semantic: embedding batch %d failed: %s", bi // EMBED_BATCH_SIZE, exc)
+                _logger.warning(
+                    "semantic: embedding batch %d failed: %s",
+                    bi // EMBED_BATCH_SIZE,
+                    exc,
+                )
         if new_emb:
             if emb_store.get_dimension() is None:
                 dim = len(next(iter(new_emb.values())))
@@ -1031,10 +1178,23 @@ def _search_symbols_semantic(
                 continue
             if language and sym.get("language") != language:
                 continue
-            if decorator and not any(decorator.lower() in d.lower() for d in (sym.get("decorators") or [])):
+            if decorator and not any(
+                decorator.lower() in d.lower() for d in (sym.get("decorators") or [])
+            ):
                 continue
 
-        bm25 = 0.0 if semantic_only else _bm25_score(sym, query_terms, idf, avgdl, centrality)
+        bm25 = (
+            0.0
+            if semantic_only
+            else _bm25_score(
+                sym,
+                query_terms,
+                idf,
+                avgdl,
+                centrality,
+                query_raw=query,
+            )
+        )
         if bm25 > max_bm25:
             max_bm25 = bm25
 
@@ -1049,7 +1209,11 @@ def _search_symbols_semantic(
     scored: list[tuple[float, dict]] = []
     for sym, bm25, cos in raw:
         bm25_norm = (bm25 / max_bm25) if max_bm25 > 0.0 else 0.0
-        score = cos if semantic_only else (1.0 - semantic_weight) * bm25_norm + semantic_weight * cos
+        score = (
+            cos
+            if semantic_only
+            else (1.0 - semantic_weight) * bm25_norm + semantic_weight * cos
+        )
         if score <= 0.0:
             continue
         scored.append((score, sym))
@@ -1137,7 +1301,9 @@ def _search_symbols_semantic(
         meta["tokens_used"] = used_bytes // BYTES_PER_TOKEN
         meta["tokens_remaining"] = max(0, token_budget - used_bytes // BYTES_PER_TOKEN)
     if scored_results:
-        meta["hint"] = "Use get_context_bundle(symbol_id) to retrieve source + imports in one call"
+        meta["hint"] = (
+            "Use get_context_bundle(symbol_id) to retrieve source + imports in one call"
+        )
 
     # Feature 1: Negative evidence for semantic search
     result = {
@@ -1158,7 +1324,11 @@ def _search_symbols_semantic(
                     break
         related_existing = related_existing[:5]  # cap at 5
 
-        verdict = "no_implementation_found" if not scored_results else "low_confidence_matches"
+        verdict = (
+            "no_implementation_found"
+            if not scored_results
+            else "low_confidence_matches"
+        )
         result["negative_evidence"] = {
             "verdict": verdict,
             "scanned_symbols": len(raw),
@@ -1223,12 +1393,20 @@ def _search_symbols_fusion(
     # Apply filters to get candidate symbols
     if has_filters:
         from fnmatch import fnmatch as _fnmatch
+
         candidates = [
-            sym for sym in index.symbols
+            sym
+            for sym in index.symbols
             if (not kind or sym.get("kind") == kind)
             and (not file_pattern or _fnmatch(sym.get("file", ""), file_pattern))
             and (not language or sym.get("language") == language)
-            and (not decorator or any(decorator.lower() in d.lower() for d in (sym.get("decorators") or [])))
+            and (
+                not decorator
+                or any(
+                    decorator.lower() in d.lower()
+                    for d in (sym.get("decorators") or [])
+                )
+            )
         ]
     else:
         candidates = index.symbols
@@ -1238,7 +1416,10 @@ def _search_symbols_fusion(
         return {
             "result_count": 0,
             "results": [],
-            "_meta": {"timing_ms": round(elapsed, 1), "total_symbols": len(index.symbols)},
+            "_meta": {
+                "timing_ms": round(elapsed, 1),
+                "total_symbols": len(index.symbols),
+            },
         }
 
     # Load config weights
@@ -1260,8 +1441,11 @@ def _search_symbols_fusion(
         cache = index._bm25_cache
         if "pagerank" not in cache:
             from .pagerank import compute_pagerank
+
             pr_scores, _ = compute_pagerank(
-                index.imports or {}, index.source_files, index.alias_map,
+                index.imports or {},
+                index.source_files,
+                index.alias_map,
                 psr4_map=getattr(index, "psr4_map", None),
             )
             cache["pagerank"] = pr_scores
@@ -1275,15 +1459,20 @@ def _search_symbols_fusion(
     # Similarity channel: only if embeddings exist for this repo
     try:
         from ..storage.embedding_store import EmbeddingStore
-        emb_store = EmbeddingStore(base_path=store._base_path if hasattr(store, "_base_path") else None)
+
+        emb_store = EmbeddingStore(
+            base_path=store._base_path if hasattr(store, "_base_path") else None
+        )
         all_embeddings = emb_store.get_all(owner, name)
         if all_embeddings:
             from .embed_repo import _detect_provider, _embed_texts
+
             provider = _detect_provider()
             if provider:
                 q_emb = _embed_texts([query], provider[0], provider[1])
                 if q_emb and q_emb[0]:
                     from ..retrieval.signal_fusion import build_similarity_channel
+
                     sim_ch = build_similarity_channel(q_emb[0], all_embeddings)
                     channels.append(sim_ch)
     except Exception:
@@ -1349,7 +1538,9 @@ def _search_symbols_fusion(
         for entry in scored_results:
             sym = index._get_symbol_raw(entry["id"])
             if sym:
-                source = store.get_symbol_content(owner, name, entry["id"], _index=index)
+                source = store.get_symbol_content(
+                    owner, name, entry["id"], _index=index
+                )
                 entry["end_line"] = sym.get("end_line", entry["line"])
                 entry["docstring"] = sym.get("docstring", "")
                 entry["source"] = source or ""
@@ -1388,7 +1579,9 @@ def _search_symbols_fusion(
         meta["fusion_weights"] = weights
         meta["fusion_smoothing"] = smoothing
     if scored_results:
-        meta["hint"] = "Use get_context_bundle(symbol_id) to retrieve source + imports in one call"
+        meta["hint"] = (
+            "Use get_context_bundle(symbol_id) to retrieve source + imports in one call"
+        )
 
     result = {
         "result_count": len(scored_results),

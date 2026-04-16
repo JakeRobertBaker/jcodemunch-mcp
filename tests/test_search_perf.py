@@ -78,6 +78,7 @@ def _ensure_index(tmp_path_factory):
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def perf_repo(tmp_path_factory):
     """Module-scoped synthetic repo for search performance tests."""
@@ -92,15 +93,24 @@ QUERIES = ["parse", "search", "index", "token", "server", "load"]
 
 
 class TestSearchStability:
-
     def test_results_stable_across_two_calls(self, perf_repo):
         """BM25 results must be deterministic: identical on repeated calls."""
         repo, store = perf_repo
         for q in QUERIES:
-            r1 = search_symbols(repo=repo, query=q, max_results=10,
-                                detail_level="compact", storage_path=store)
-            r2 = search_symbols(repo=repo, query=q, max_results=10,
-                                detail_level="compact", storage_path=store)
+            r1 = search_symbols(
+                repo=repo,
+                query=q,
+                max_results=10,
+                detail_level="compact",
+                storage_path=store,
+            )
+            r2 = search_symbols(
+                repo=repo,
+                query=q,
+                max_results=10,
+                detail_level="compact",
+                storage_path=store,
+            )
             assert "results" in r1, f"Query '{q}': unexpected error: {r1}"
             ids1 = [r["id"] for r in r1["results"]]
             ids2 = [r["id"] for r in r2["results"]]
@@ -110,10 +120,22 @@ class TestSearchStability:
         """BM25 scores must be identical on repeated calls (requires debug=True)."""
         repo, store = perf_repo
         for q in QUERIES:
-            r1 = search_symbols(repo=repo, query=q, max_results=10,
-                                detail_level="compact", debug=True, storage_path=store)
-            r2 = search_symbols(repo=repo, query=q, max_results=10,
-                                detail_level="compact", debug=True, storage_path=store)
+            r1 = search_symbols(
+                repo=repo,
+                query=q,
+                max_results=10,
+                detail_level="compact",
+                debug=True,
+                storage_path=store,
+            )
+            r2 = search_symbols(
+                repo=repo,
+                query=q,
+                max_results=10,
+                detail_level="compact",
+                debug=True,
+                storage_path=store,
+            )
             assert "results" in r1, f"Query '{q}': unexpected error: {r1}"
             scores1 = [round(r["score"], 6) for r in r1["results"]]
             scores2 = [round(r["score"], 6) for r in r2["results"]]
@@ -122,8 +144,13 @@ class TestSearchStability:
     def test_relevant_symbol_appears_in_results(self, perf_repo):
         """Querying 'parse' should surface parse_file as a top result."""
         repo, store = perf_repo
-        r = search_symbols(repo=repo, query="parse", max_results=5,
-                           detail_level="compact", storage_path=store)
+        r = search_symbols(
+            repo=repo,
+            query="parse",
+            max_results=5,
+            detail_level="compact",
+            storage_path=store,
+        )
         assert "results" in r
         result_names = [entry["name"] for entry in r["results"]]
         # parse_file, parse_tokens, parse_imports — at least one should appear
@@ -136,27 +163,85 @@ class TestSearchStability:
         """All test queries should return at least one result."""
         repo, store = perf_repo
         for q in QUERIES:
-            r = search_symbols(repo=repo, query=q, max_results=10,
-                               detail_level="compact", storage_path=store)
+            r = search_symbols(
+                repo=repo,
+                query=q,
+                max_results=10,
+                detail_level="compact",
+                storage_path=store,
+            )
             assert "results" in r, f"Query '{q}' errored: {r}"
             assert len(r["results"]) > 0, f"Query '{q}' returned no results"
+
+    def test_exact_identifier_ranks_first_with_strict_filters(self, tmp_path):
+        """Exact CamelCase query should beat fuzzy lexical near-matches."""
+        (tmp_path / "src/claude_parser/application/parsing").mkdir(parents=True)
+        (tmp_path / "src/claude_parser/application/batch_tools").mkdir(parents=True)
+
+        (tmp_path / "src/claude_parser/application/parsing/service.py").write_text(
+            'class ParsingService:\n    """Core parser service."""\n    pass\n',
+            encoding="utf-8",
+        )
+        (tmp_path / "src/claude_parser/application/batch_tools/service.py").write_text(
+            "class ParsingServiceLikeService:\n"
+            '    """Parsing service parsing service parsing service parsing service."""\n'
+            "    pass\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "src/claude_parser/config.py").write_text(
+            "class ParserConfig:\n    pass\n",
+            encoding="utf-8",
+        )
+
+        store = tmp_path / "store"
+        store.mkdir()
+        indexed = index_folder(
+            str(tmp_path), use_ai_summaries=False, storage_path=str(store)
+        )
+        assert indexed["success"] is True
+
+        result = search_symbols(
+            repo=indexed["repo"],
+            query="ParsingService",
+            kind="class",
+            file_pattern="src/**/*.py",
+            language="python",
+            max_results=10,
+            detail_level="compact",
+            debug=True,
+            storage_path=str(store),
+        )
+
+        assert result["result_count"] >= 1
+        assert result["results"][0]["name"] == "ParsingService"
+        assert (
+            result["results"][0]["file"]
+            == "src/claude_parser/application/parsing/service.py"
+        )
+        assert result["results"][0]["score_breakdown"]["identity"] == 50.0
 
 
 # ---------------------------------------------------------------------------
 # T14 — Latency budgets (in-process benchmarks)
 # ---------------------------------------------------------------------------
 
-class TestSearchLatency:
 
+class TestSearchLatency:
     def test_cold_search_within_budget(self, perf_repo):
         """Cold BM25 search (cache empty) must complete within 2000 ms."""
         from jcodemunch_mcp.storage.sqlite_store import _cache_clear
+
         repo, store = perf_repo
         _cache_clear()
 
         start = time.perf_counter()
-        r = search_symbols(repo=repo, query="parse", max_results=10,
-                           detail_level="compact", storage_path=store)
+        r = search_symbols(
+            repo=repo,
+            query="parse",
+            max_results=10,
+            detail_level="compact",
+            storage_path=store,
+        )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert "results" in r
@@ -168,12 +253,22 @@ class TestSearchLatency:
         """Warm BM25 search (cache populated) must complete within 500 ms."""
         repo, store = perf_repo
         # Warm up the BM25 cache
-        search_symbols(repo=repo, query="parse", max_results=10,
-                       detail_level="compact", storage_path=store)
+        search_symbols(
+            repo=repo,
+            query="parse",
+            max_results=10,
+            detail_level="compact",
+            storage_path=store,
+        )
 
         start = time.perf_counter()
-        r = search_symbols(repo=repo, query="parse", max_results=10,
-                           detail_level="compact", storage_path=store)
+        r = search_symbols(
+            repo=repo,
+            query="parse",
+            max_results=10,
+            detail_level="compact",
+            storage_path=store,
+        )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert "results" in r
@@ -184,17 +279,28 @@ class TestSearchLatency:
     def test_warm_faster_than_cold(self, perf_repo):
         """Warm search should be faster than cold search (cache benefit)."""
         from jcodemunch_mcp.storage.sqlite_store import _cache_clear
+
         repo, store = perf_repo
         _cache_clear()
 
         start = time.perf_counter()
-        search_symbols(repo=repo, query="search", max_results=10,
-                       detail_level="compact", storage_path=store)
+        search_symbols(
+            repo=repo,
+            query="search",
+            max_results=10,
+            detail_level="compact",
+            storage_path=store,
+        )
         cold_ms = (time.perf_counter() - start) * 1000
 
         start = time.perf_counter()
-        search_symbols(repo=repo, query="search", max_results=10,
-                       detail_level="compact", storage_path=store)
+        search_symbols(
+            repo=repo,
+            query="search",
+            max_results=10,
+            detail_level="compact",
+            storage_path=store,
+        )
         warm_ms = (time.perf_counter() - start) * 1000
 
         # On very fast machines cold/warm may be within noise — only enforce
@@ -206,8 +312,13 @@ class TestSearchLatency:
     def test_timing_meta_reported(self, perf_repo):
         """search_symbols _meta must include timing_ms."""
         repo, store = perf_repo
-        r = search_symbols(repo=repo, query="token", max_results=5,
-                           detail_level="compact", storage_path=store)
+        r = search_symbols(
+            repo=repo,
+            query="token",
+            max_results=5,
+            detail_level="compact",
+            storage_path=store,
+        )
         assert "_meta" in r
         assert "timing_ms" in r["_meta"]
         assert r["_meta"]["timing_ms"] >= 0
