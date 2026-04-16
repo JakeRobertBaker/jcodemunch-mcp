@@ -3,6 +3,8 @@
 import pytest
 from pathlib import Path
 
+from jcodemunch_mcp.tools.index_folder import index_folder
+
 
 class TestPlanTurn:
     """Tests for plan_turn function."""
@@ -32,7 +34,11 @@ class TestPlanTurn:
 
         assert result["confidence"] == "low"
         gap_lower = result["gap_analysis"].lower()
-        assert "creat" in gap_lower or "not found" in gap_lower or "no symbols" in gap_lower
+        assert (
+            "creat" in gap_lower
+            or "not found" in gap_lower
+            or "no symbols" in gap_lower
+        )
 
     def test_recommended_symbols_have_required_fields(self, tmp_path: Path):
         """Each recommended symbol has id, name, file, line."""
@@ -91,7 +97,10 @@ class TestPlanTurn:
         )
 
         # Low confidence should suggest MORE reads, not fewer
-        assert result_low["max_supplementary_reads"] >= result_high["max_supplementary_reads"]
+        assert (
+            result_low["max_supplementary_reads"]
+            >= result_high["max_supplementary_reads"]
+        )
 
     def test_gap_analysis_is_string(self, tmp_path: Path):
         """gap_analysis is a non-empty string."""
@@ -128,7 +137,9 @@ class TestPlanTurn:
         from tests.conftest_helpers import create_mini_index
 
         repo, storage_path = create_mini_index(tmp_path)
-        result = plan_turn(repo=repo, query="nonexistent_xyz_feature", storage_path=storage_path)
+        result = plan_turn(
+            repo=repo, query="nonexistent_xyz_feature", storage_path=storage_path
+        )
 
         assert result["confidence"] in ("low", "none")
         if "insertion_candidates" in result:
@@ -148,7 +159,9 @@ class TestPlanTurn:
         journal = get_journal()
         journal.record_search("nonexistent_xyz_feature", result_count=0)
 
-        result = plan_turn(repo=repo, query="nonexistent_xyz_feature", storage_path=storage_path)
+        result = plan_turn(
+            repo=repo, query="nonexistent_xyz_feature", storage_path=storage_path
+        )
         assert result["confidence"] == "none"
         assert "prior_evidence" in result
         assert result["prior_evidence"]["previously_searched"] is True
@@ -165,8 +178,40 @@ class TestPlanTurn:
         journal = get_journal()
         journal.record_search("zzz_totally_fake_query", result_count=0)
 
-        result = plan_turn(repo=repo, query="zzz_totally_fake_query", storage_path=storage_path)
+        result = plan_turn(
+            repo=repo, query="zzz_totally_fake_query", storage_path=storage_path
+        )
         assert result["confidence"] in ("none", "low")
+
+    def test_handles_equal_score_ties_without_crashing(self, tmp_path: Path):
+        """Equal-score symbols should not trigger heap tuple comparison errors."""
+        from jcodemunch_mcp.tools.plan_turn import plan_turn
+
+        (tmp_path / "alpha.py").write_text(
+            "def main():\n    return 1\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "beta.py").write_text(
+            "def main():\n    return 2\n",
+            encoding="utf-8",
+        )
+        storage_path = str(tmp_path / "idx")
+        index_result = index_folder(
+            path=str(tmp_path),
+            use_ai_summaries=False,
+            storage_path=storage_path,
+        )
+        assert index_result["success"] is True
+
+        result = plan_turn(
+            repo=index_result["repo"],
+            query="main",
+            max_recommended=5,
+            storage_path=storage_path,
+        )
+
+        assert "error" not in result
+        assert len(result["recommended_symbols"]) >= 2
 
 
 class TestPlanTurnActionField:

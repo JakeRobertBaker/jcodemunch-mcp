@@ -20,9 +20,7 @@ def _build_repo(tmp_path):
         "def used_fn():\n    return 1\n\ndef dead_fn():\n    return 2\n"
     )
     # Completely unreachable module
-    (src / "orphan.py").write_text(
-        "def orphan_fn():\n    pass\n"
-    )
+    (src / "orphan.py").write_text("def orphan_fn():\n    pass\n")
 
     r = index_folder(str(src), use_ai_summaries=False, storage_path=str(store))
     assert r["success"] is True
@@ -49,7 +47,9 @@ class TestGetDeadCodeV2:
 
     def test_confidence_respects_threshold(self, tmp_path):
         repo, store = _build_repo(tmp_path)
-        result_high = get_dead_code_v2(repo=repo, min_confidence=0.9, storage_path=store)
+        result_high = get_dead_code_v2(
+            repo=repo, min_confidence=0.9, storage_path=store
+        )
         result_low = get_dead_code_v2(repo=repo, min_confidence=0.1, storage_path=store)
         high_count = len(result_high["dead_symbols"])
         low_count = len(result_low["dead_symbols"])
@@ -85,3 +85,34 @@ class TestGetDeadCodeV2:
         for sym in result["dead_symbols"]:
             for sig in sym["signals"]:
                 assert sig in valid_signals
+
+    def test_decorated_entrypoint_symbols_do_not_raise(self, tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        store = tmp_path / "store"
+        store.mkdir()
+
+        (src / "main.py").write_text(
+            "from web import app\n\nif __name__ == '__main__':\n    app()\n",
+            encoding="utf-8",
+        )
+        (src / "web.py").write_text(
+            "def app():\n    return 1\n\n"
+            "@app.route('/health')\n"
+            "def health():\n    return 'ok'\n",
+            encoding="utf-8",
+        )
+
+        indexed = index_folder(
+            str(src), use_ai_summaries=False, storage_path=str(store)
+        )
+        assert indexed["success"] is True
+
+        result = get_dead_code_v2(
+            repo=indexed["repo"],
+            min_confidence=0.1,
+            storage_path=str(store),
+        )
+
+        assert "error" not in result
+        assert isinstance(result["dead_symbols"], list)

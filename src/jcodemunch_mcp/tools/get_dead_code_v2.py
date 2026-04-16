@@ -29,16 +29,33 @@ from ..parser.context._route_utils import ENTRY_POINT_DECORATOR_RE
 # Helpers shared with find_dead_code
 # ---------------------------------------------------------------------------
 
-_ENTRY_POINT_FILENAMES = frozenset({
-    "__main__.py", "conftest.py", "manage.py", "wsgi.py", "asgi.py",
-    "setup.py", "app.py", "main.py", "run.py", "cli.py", "celery.py",
-    "Makefile",
-})
+_ENTRY_POINT_FILENAMES = frozenset(
+    {
+        "__main__.py",
+        "conftest.py",
+        "manage.py",
+        "wsgi.py",
+        "asgi.py",
+        "setup.py",
+        "app.py",
+        "main.py",
+        "run.py",
+        "cli.py",
+        "celery.py",
+        "Makefile",
+    }
+)
 
-_BARREL_FILENAMES = frozenset({
-    "__init__.py", "index.ts", "index.js", "index.tsx", "index.jsx",
-    "mod.rs",
-})
+_BARREL_FILENAMES = frozenset(
+    {
+        "__init__.py",
+        "index.ts",
+        "index.js",
+        "index.tsx",
+        "index.jsx",
+        "mod.rs",
+    }
+)
 
 
 def _filename(path: str) -> str:
@@ -53,11 +70,18 @@ def _is_barrel(file_path: str) -> bool:
     return _filename(file_path) in _BARREL_FILENAMES
 
 
-def _build_reverse_adjacency(imports: dict, source_files: frozenset, alias_map: dict, psr4_map: Optional[dict] = None) -> dict[str, list[str]]:
+def _build_reverse_adjacency(
+    imports: dict,
+    source_files: frozenset,
+    alias_map: dict,
+    psr4_map: Optional[dict] = None,
+) -> dict[str, list[str]]:
     rev: dict[str, list[str]] = {}
     for src_file, file_imports in imports.items():
         for imp in file_imports:
-            target = resolve_specifier(imp["specifier"], src_file, source_files, alias_map, psr4_map)
+            target = resolve_specifier(
+                imp["specifier"], src_file, source_files, alias_map, psr4_map
+            )
             if target and target != src_file:
                 rev.setdefault(target, []).append(src_file)
     return {k: list(dict.fromkeys(v)) for k, v in rev.items()}
@@ -100,6 +124,7 @@ def _barrel_exports(index, store, owner, repo_name) -> set[str]:
 # ---------------------------------------------------------------------------
 # Main tool
 # ---------------------------------------------------------------------------
+
 
 def get_dead_code_v2(
     repo: str,
@@ -156,7 +181,7 @@ def get_dead_code_v2(
         # Fast path: use pre-computed AST call_references index
         # Any symbol whose name appears as a value in callers_by_name has at least one caller
         called_names_by_file: dict[str, set[str]] = {}
-        for (caller_file, called_name) in callers_by_name:
+        for caller_file, called_name in callers_by_name:
             called_names_by_file.setdefault(caller_file, set()).add(called_name)
         for sym in index.symbols:
             if sym.get("kind") not in ("function", "method"):
@@ -183,7 +208,9 @@ def get_dead_code_v2(
                 continue
             for importer_file in rev.get(sym_file, []):
                 if importer_file not in _file_cache:
-                    _file_cache[importer_file] = store.get_file_content(owner, name, importer_file) or ""
+                    _file_cache[importer_file] = (
+                        store.get_file_content(owner, name, importer_file) or ""
+                    )
                 content = _file_cache[importer_file]
                 if content and _word_match(content, sym_name):
                     callee_has_caller.add(sym["id"])
@@ -211,7 +238,10 @@ def get_dead_code_v2(
             continue
 
         # Skip symbols with entry-point decorators
-        if any(_ENTRY_POINT_DECORATOR_RE.search(str(d)) for d in (sym.get("decorators") or [])):
+        if any(
+            ENTRY_POINT_DECORATOR_RE.search(str(d))
+            for d in (sym.get("decorators") or [])
+        ):
             continue
 
         signals: list[str] = []
@@ -231,15 +261,17 @@ def get_dead_code_v2(
         confidence = len(signals) / 3.0
         if confidence >= min_confidence:
             seen_ids.add(sid)
-            dead_symbols.append({
-                "id": sid,
-                "name": sym_name,
-                "kind": sym.get("kind", ""),
-                "file": sym_file,
-                "line": sym.get("line", 0),
-                "confidence": round(confidence, 2),
-                "signals": signals,
-            })
+            dead_symbols.append(
+                {
+                    "id": sid,
+                    "name": sym_name,
+                    "kind": sym.get("kind", ""),
+                    "file": sym_file,
+                    "line": sym.get("line", 0),
+                    "confidence": round(confidence, 2),
+                    "signals": signals,
+                }
+            )
 
     dead_symbols.sort(key=lambda x: (-x["confidence"], x["file"], x["line"]))
 
@@ -248,8 +280,7 @@ def get_dead_code_v2(
         "repo": f"{owner}/{name}",
         "dead_symbols": dead_symbols,
         "total_analysed": sum(
-            1 for s in index.symbols
-            if s.get("kind") in ("function", "method")
+            1 for s in index.symbols if s.get("kind") in ("function", "method")
         ),
         "min_confidence": min_confidence,
         "_meta": {
@@ -272,7 +303,9 @@ def _is_test_file(file_path: str) -> bool:
     fp = file_path.replace("\\", "/")
     fn = fp.rsplit("/", 1)[-1]
     return (
-        "/tests/" in fp or "/test/" in fp
-        or fn.startswith("test_") or fn.endswith("_test.py")
+        "/tests/" in fp
+        or "/test/" in fp
+        or fn.startswith("test_")
+        or fn.endswith("_test.py")
         or fn == "conftest.py"
     )

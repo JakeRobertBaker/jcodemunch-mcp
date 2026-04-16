@@ -65,7 +65,10 @@ def plan_turn(
     if "idf" not in cache:
         cache["idf"], cache["avgdl"], cache["inverted"] = _compute_bm25(index.symbols)
         cache["centrality"] = _compute_centrality(
-            index.symbols, index.imports, index.alias_map, getattr(index, "psr4_map", None)
+            index.symbols,
+            index.imports,
+            index.alias_map,
+            getattr(index, "psr4_map", None),
         )
     idf = cache["idf"]
     avgdl = cache["avgdl"]
@@ -90,7 +93,7 @@ def plan_turn(
         candidates = index.symbols
 
     # Score and rank
-    heap: list[tuple[float, dict]] = []
+    heap: list[tuple[float, str, dict]] = []
     max_score = 0.0
     hits = 0
 
@@ -110,17 +113,24 @@ def plan_turn(
             "score": round(score, 3),
         }
 
+        # Include symbol id as a deterministic tie-breaker so equal scores
+        # never force heapq to compare dict payloads.
+        heap_entry = (score, entry["id"], entry)
         if len(heap) < max_recommended:
-            heapq.heappush(heap, (score, entry))
+            heapq.heappush(heap, heap_entry)
         elif score > heap[0][0]:
-            heapq.heapreplace(heap, (score, entry))
+            heapq.heapreplace(heap, heap_entry)
 
     # Sort by score descending
-    recommended_symbols = [entry for score, entry in sorted(heap, key=lambda x: x[0], reverse=True)]
+    recommended_symbols = [
+        entry
+        for score, _symbol_id, entry in sorted(heap, key=lambda x: x[0], reverse=True)
+    ]
 
     # Determine confidence (config-driven thresholds)
     try:
         from .. import config as _cfg
+
         high_t = _cfg.get("plan_turn_high_threshold", _HIGH_THRESHOLD)
         med_t = _cfg.get("plan_turn_medium_threshold", _MEDIUM_THRESHOLD)
     except Exception:
@@ -142,9 +152,7 @@ def plan_turn(
             f"This feature likely needs to be created from scratch."
         )
     elif confidence == "medium":
-        gap_analysis = (
-            f"Partial matches found. Related code exists but may not directly implement '{query}'."
-        )
+        gap_analysis = f"Partial matches found. Related code exists but may not directly implement '{query}'."
     else:
         gap_analysis = (
             f"Strong matches found. Existing implementation likely covers '{query}'."
@@ -159,6 +167,7 @@ def plan_turn(
     accessed_files: set = set()
     try:
         from .session_journal import get_journal
+
         journal = get_journal()
         journal_ctx = journal.get_context()
         accessed_files = {f["file"] for f in journal_ctx.get("files_accessed", [])}
@@ -195,6 +204,7 @@ def plan_turn(
     if confidence in ("low", "none"):
         try:
             from .pagerank import compute_pagerank
+
             if "pagerank" not in cache:
                 pr_scores, _ = compute_pagerank(
                     index.imports or {}, index.source_files, index.alias_map
@@ -210,9 +220,16 @@ def plan_turn(
                     name_matches.append((f, pr_scores.get(f, 0.0)))
 
             # Fall back to top PageRank files if no name match
-            candidates_for_insert = name_matches if name_matches else [
-                (f, s) for f, s in sorted(pr_scores.items(), key=lambda x: x[1], reverse=True)[:20]
-            ]
+            candidates_for_insert = (
+                name_matches
+                if name_matches
+                else [
+                    (f, s)
+                    for f, s in sorted(
+                        pr_scores.items(), key=lambda x: x[1], reverse=True
+                    )[:20]
+                ]
+            )
             candidates_for_insert.sort(key=lambda x: x[1], reverse=True)
 
             insertion_candidates = [
@@ -233,12 +250,14 @@ def plan_turn(
     budget_advisor = None
     try:
         from .turn_budget import get_turn_budget
+
         tb = get_turn_budget()
         if tb.is_enabled():
             pct = tb.percent_used()
             if pct > 0.6:
                 if "pagerank" not in cache:
                     from .pagerank import compute_pagerank
+
                     pr_scores, _ = compute_pagerank(
                         index.imports or {}, index.source_files, index.alias_map
                     )
@@ -246,13 +265,19 @@ def plan_turn(
                 pr_scores = cache.get("pagerank", {})
                 already_read = accessed_files if accessed_files else set()
                 unexplored = sorted(
-                    [(f, pr_scores.get(f, 0.0)) for f in index.source_files if f not in already_read],
-                    key=lambda x: x[1], reverse=True,
+                    [
+                        (f, pr_scores.get(f, 0.0))
+                        for f in index.source_files
+                        if f not in already_read
+                    ],
+                    key=lambda x: x[1],
+                    reverse=True,
                 )[:5]
                 budget_advisor = {
                     "turn_budget_percent_used": round(pct * 100, 1),
                     "highest_value_unexplored": [
-                        {"file": f, "centrality_score": round(s, 4)} for f, s in unexplored
+                        {"file": f, "centrality_score": round(s, 4)}
+                        for f, s in unexplored
                     ],
                     "recommendation": (
                         f"Budget {round(pct * 100)}% used. "
